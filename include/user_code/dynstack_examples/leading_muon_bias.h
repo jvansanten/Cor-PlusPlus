@@ -43,7 +43,7 @@ enum {
 
 /// Energy/nucleon of the primary nucleus
 double primaryEnergy = 0;
-double max_x = 1;
+double max_x = 0;
 
 /// Number of similar showers this event represents
 double weight = 1;
@@ -54,48 +54,108 @@ size_t n_showers = 0;
 size_t n_killed = 0;
 size_t n_pops_before_kill = 0;
 size_t n_pops_total = 0;
-double target_num_muons = 1e-3;
-double x_threshold = 0.1;
-double bias_power = 2.;
+// We store this in the event header, so keep it always in single precision
+float bias_factor = 1e-3;
+
+class ElbertYield {
+public:
+	ElbertYield() : a(14.5), p1(0.757+1), p2(5.25), logN0(0)
+	{}
+	
+	ElbertYield(double primaryEnergy, unsigned A, double cos_theta) :
+	    a(14.5), p1(0.757+1), p2(5.25),
+	    logN0(std::log(a*A*A/primaryEnergy/effective_costheta(cos_theta)))
+	{}
+	
+	double operator()(double x) const
+	{
+		return std::exp(logYield(std::log(x)));
+	}
+	
+	// Invert the Elbert formula to find the energy (in units of the primary
+	// energy/nucleon) above which N muons are expected per shower.
+	double invert(double N) const
+	{
+		const double xtol(1e-5);
+		const double y = std::log(N);
+		double x0 = std::min((logN0 - y)/p1, -xtol);
+		for (int i=0; i < 20; i++) {
+			const double xp = std::min(x0 - (logYield(x0)-y)/dlogYield(x0), -xtol);
+			if (std::abs(xp-x0) < xtol)
+				return std::exp(xp);
+			x0 = xp;
+		}
+		
+		throw std::runtime_error("Root solver did not converge");
+		return std::exp(x0);
+	}
+
+private:
+	double a, p1, p2;
+	double logN0;
+	
+	// Effective local atmospheric density correction from [Chirkin]_.
+	// 
+	// .. [Chirkin] D. Chirkin. Fluxes of atmospheric leptons at 600-GeV - 60-TeV. 2004. http://arxiv.org/abs/hep-ph/0407078
+	static double effective_costheta(double x)
+	{
+		std::array<double,5> p = {0.102573, -0.068287, 0.958633, 0.0407253, 0.817285};
+		return std::sqrt((std::pow(x,2) + std::pow(p[0],2) + p[1]*std::pow(x,p[2]) + p[3]*std::pow(x,p[4]))/(1 + std::pow(p[0],2) + p[1] + p[3]));
+	}
+	
+	double logYield(double logx) const
+	{
+		return logN0 - p1*logx + p2*std::log(1-std::exp(logx));
+	}
+	
+	double dlogYield(double logx) const
+	{
+		return -p1 - p2*std::exp(logx)/(1-std::exp(logx));
+	}
+};
+
+class ElbertBias : private ElbertYield {
+public:
+	ElbertBias() {}
+	// Find x_threshold such that the probability of a shower producing
+	// at least 1 muon above the threshold is bias_factor
+	ElbertBias(double primaryEnergy, unsigned A, double cos_theta, double bias_factor)
+		: ElbertYield(primaryEnergy,A,cos_theta),
+		  x_threshold(bias_factor < 1 ? invert(-std::log(1-bias_factor)) : 0)
+	{}
+	
+	// NB: the x of the lead muon will be stored in single precision in the
+	// event trailer, so we truncate it here to ensure that we can reproduce
+	// the result later.
+	double operator()(float x) const
+	{
+		if (x >= x_threshold) {
+			// above threshold, accept all showers
+			return 1;
+		} else {
+			// Below threshold, accept according the the probability for the
+			// shower to produce at least one muon above threshold, relative to
+			// the probability of producing at least 1 muon above the current
+			// energy. At small x this converges to the bias factor. This 
+			// happens because nearly all showers produce low energy muons; 
+			// once we reach this low x regime, we just have to pick 1 out of 
+			// 1/bias_factor showers at random.
+			return (1-std::exp(-ElbertYield::operator()(x_threshold)))/(1-std::exp(-ElbertYield::operator()(x)));
+		}
+	}
+	
+	double threshold() const { return x_threshold; }
+private:
+	double x_threshold;
+};
+
+ElbertBias kill_bias;
 
 /// Probability of accepting a shower if its highest-energy muon carries a
 /// fraction `x` of the primary energy/nucleon.
 double bias(double x)
 {
-	return std::min(std::pow(x/x_threshold, bias_power), 1.);
-}
-
-// Effective local atmospheric density correction from [Chirkin]_.
-// 
-// .. [Chirkin] D. Chirkin. Fluxes of atmospheric leptons at 600-GeV - 60-TeV. 2004. http://arxiv.org/abs/hep-ph/0407078
-double effective_costheta(double x)
-{
-	std::array<double,5> p = {0.102573, -0.068287, 0.958633, 0.0407253, 0.817285};
-	return std::sqrt((std::pow(x,2) + std::pow(p[0],2) + p[1]*std::pow(x,p[2]) + p[3]*std::pow(x,p[4]))/(1 + std::pow(p[0],2) + p[1] + p[3]));
-}
-
-// Invert the Elbert formula to find the energy (in units of the primary
-// energy/nucleon) above which N muons are expected per shower.
-double invert_elbert(double N, double primaryEnergy, unsigned A, double cos_theta)
-{
-	const double a(14.5), p1(0.757+1), p2(5.25);
-	const double logN0 = std::log(a*A*A/primaryEnergy/effective_costheta(cos_theta));
-	
-	auto logYield = [&](double logx) { return logN0 - p1*logx + p2*std::log(1-std::exp(logx)); };
-	auto dlogYield = [&](double logx) { return -p1 - p2*std::exp(logx)/(1-std::exp(logx)); };
-	
-	const double xtol(1e-5);
-	const double y = std::log(N);
-	double x0 = std::min((logN0 - y)/p1, -xtol);
-	for (int i=0; i < 20; i++) {
-		const double xp = std::min(x0 - (logYield(x0)-y)/dlogYield(x0), -xtol);
-		if (std::abs(xp-x0) < xtol)
-			return std::exp(xp);
-		x0 = xp;
-	}
-	
-	throw std::runtime_error("Root solver did not converge");
-	return std::exp(x0);
+	return kill_bias(x);
 }
 
 void reset() {
@@ -106,7 +166,7 @@ void reset() {
 	}
 	state = RESET;
 	primaryEnergy = 0;
-	max_x = 1;
+	max_x = 0;
 	weight = 1;
 	n_pops = 0;
 }
@@ -145,11 +205,13 @@ void particleIn(const Particle *p)
 	if (state == RESET) {
 		// First push after reset is the shower primary
 		primaryEnergy = getEnergy(*p)/getNucleonNumber(*p);
-		x_threshold = invert_elbert(target_num_muons, getEnergy(*p), getNucleonNumber(*p), (*p)[Particle::COSTHE]);
-		if (n_showers == 1)
-			std::cerr << "(muon-bias) Ep="<<getEnergy(*p)<<" A="<<getNucleonNumber(*p)<<" N(x>"<<x_threshold<<")="<<target_num_muons<<std::endl;
+		if (bias_factor < 1) {
+			kill_bias = ElbertBias(getEnergy(*p), getNucleonNumber(*p), (*p)[Particle::COSTHE], bias_factor);
+			if (n_showers == 1)
+				std::cerr << "(muon-bias) Ep="<<getEnergy(*p)<<" A="<<getNucleonNumber(*p)<<" P(N_mu(x>"<<kill_bias.threshold()<<")>0)="<<bias_factor<<std::endl;
+		}
 		// Go straight to secondary stack if no threshold set
-		state = (x_threshold > 0) ? PENDING : COMMITTED;
+		state = (bias_factor < 1) ? PENDING : COMMITTED;
 		n_showers++;
 	}
 }
@@ -165,11 +227,17 @@ double uniform()
 void particleOut(const Particle *p)
 {
 	n_pops++;
-	if (state == PENDING) {
-		// Fraction of primary energy in this particle
+	// if in unbiased LIFO mode, need to search for the highest-energy muon
+	// explicitly
+	if (bias_factor == 1 && (getType(*p) == 5 || getType(*p) == 6)) {
 		double x = getEnergy(*p)/primaryEnergy;
+		if (x > max_x)
+			max_x = x;
+	} else if (state == PENDING) {
+		// Fraction of primary energy in this particle
+		max_x = getEnergy(*p)/primaryEnergy;
 		// Probability of acceptance
-		double prob = bias(x)*weight;
+		double prob = bias(max_x)*weight;
 		// Is this the leading muon?
 		bool isMuon = (getType(*p) == 5 || getType(*p) == 6);
 		
@@ -230,10 +298,19 @@ struct EnergySort {
 	}
 };
 
-void footer(lib::data::EventEnd &eh)
+void header(lib::data::EventHeader &block)
+{
+	// Write bias factor to field normally used for energy_interesting
+	// in ICECUBE1 (original neutrino kill threshold) mode
+	block.write(lib::data::EventHeader::index(219), float(bias_factor));
+}
+
+void footer(lib::data::EventEnd &block)
 {
 	// Write prescale bias to an unused field in event trailer
-	eh.write(lib::data::EventEnd::index(266), float(weight));
+	// FIXME: is there a better place to put these?
+	block.write(lib::data::EventEnd::index(266), float(weight));
+	block.write(lib::data::EventEnd::index(267), float(max_x));
 }
 
 typedef 
@@ -276,10 +353,8 @@ auto dynstack_setup(std::vector<long> sizes, std::vector< std::list<std::string>
 	}
 	if (arguments.size() != 1) {
 		std::cerr << "You must provide a DYNSTACK_P line in the steering card, e.g." << std::endl;
-		std::cerr << "DYNSTACK_P muon per_shower 1e-3 bias_power 2" << std::endl;
-		std::cerr << "to kill showers with a probability (x/x0)^2, where x0 is " << std::endl;
-		std::cerr << "chosen so such that the Elbert formula predicts 1e-3 muons" << std::endl;
-		std::cerr << "per shower with x>x0" << std::endl;
+		std::cerr << "DYNSTACK_P muon bias_factor 1e-3" << std::endl;
+		std::cerr << "to select approximately 0.1% of showers" << std::endl;
 		std::cerr << arguments.size() << std::endl;
 		exit(-1);
 	}
@@ -290,16 +365,13 @@ auto dynstack_setup(std::vector<long> sizes, std::vector< std::list<std::string>
 		exit(-1);
 	}
 	while (++word != line.end()) {
-		if (*word == "per_shower") {
-			if (!read_argument(word, line.end(), target_num_muons, 0., std::numeric_limits<double>::infinity())) {
-				exit(-1);
-			}
-		} else if (*word == "bias_power") {
-			if (!read_argument(word, line.end(), bias_power, 0., 1e2)) {
+		if (*word == "bias_factor") {
+			if (!read_argument(word, line.end(), bias_factor, 0.f, 1.f)) {
 				exit(-1);
 			}
 		}
 	}
+	SHeaderManager().register_evth_callback(header);
 	SHeaderManager().register_evte_callback(footer);
 	
 	auto stack = std::make_unique<stack_type>(sizes.front());
