@@ -75,11 +75,11 @@ void remotecontrol_start_()
 		}
 		std::cout << std::endl;
 
-		if (itr.first == "REMOTECONTROL_IP")
+		if (itr.first == "REMOTE_CONTROL")
 		{
 			if (itr.second.size() != 2)
 			{
-				std::cerr << "(RC) Invalid number of parameter for REMOTECONTROL_IP (dns) (port)" << std::endl;
+				std::cerr << "(RC) Invalid number of parameter for REMOTE_CONTROL (dns) (port)" << std::endl;
 				throw(std::exception());
 			}
 
@@ -92,7 +92,7 @@ void remotecontrol_start_()
 			sstr >> port;
 			itr.second.pop_front();
 		}
-		else if (itr.first == "REMOTECONTROL_P")
+		else if (itr.first == "REMOTE_CONTROL_P")
 		{
 			
 		}
