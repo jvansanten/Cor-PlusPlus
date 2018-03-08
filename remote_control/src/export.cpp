@@ -158,9 +158,6 @@ void remotecontrol_push_evth_(const float* data)
 void remotecontrol_push_evte_(const float* data)
 {
 #ifdef SEND_EVENT_END
-	std::cout << "Send event end" << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_END_ID), 273);
-	p.append(data, 273);
 	// std::cout << "Send event end" << std::endl;
 	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_END_ID), 273*sizeof(float));
 	p.append(data, 273*sizeof(float));
@@ -174,11 +171,28 @@ void remotecontrol_push_evte_(const float* data)
  *  Is called every time CORSIKA creates a new initial particle for the shower simulation.
  */
 
-void remotecontrol_push_initalparticle_(const float* data, unsigned int len)
+void remotecontrol_push_initalparticle_(const double* data, unsigned int* len)
 {
+#ifdef SEND_INITIAL_PARTICLE
+	remote_control::communication::Packet p(static_cast<uint32_t>(INITIAL_PARTICLE_ID), *len);
+	p.append(data, *len);
+	remote_control::SMainControl().send(p);
+#endif
 	(void) (data);
 	(void) (len);
 }
+
+void remotecontrol_push_finalparticle_(const double* data, unsigned int* len)
+{
+#ifdef SEND_OBSLEVEL_PARTICLES
+	remote_control::communication::Packet p(static_cast<uint32_t>(OBSLEVEL_PARTICLE_ID), *len);
+	p.append(data, *len);
+	remote_control::SMainControl().send(p);
+#endif
+	(void) (data);
+	(void) (len);
+}
+
 
 /** \details
  *  Is called every time CORSIKA wants to create a new initial particle for the shower simulation.
