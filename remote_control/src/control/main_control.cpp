@@ -15,74 +15,70 @@
 namespace remote_control
 {
 
-	void MainControl::loop()
+	void MainControl::send_loop()
+	{
+		while (m_tsRunning == true)
+		{
+			auto msg_send = m_tsQueue.pop_front(std::chrono::milliseconds(5));
+			if (msg_send.empty())
+				continue;
+			
+			if (!m_client.send(msg_send.toByte(), static_cast<const unsigned int>(msg_send.size()) ))
+			{
+				std::cerr << __FILE__ << " Message could not be sent" << std::endl;
+			}
+		}
+	}
+
+
+	void MainControl::recv_loop()
 	{
 		std::cout << "(RC) Start main loop..." << std::endl;
 		//auto start_time = std::chrono::high_resolution_clock::now();
 
-		try
+		while (m_tsRunning == true)
 		{
-			while (m_tsRunning == true)
+			const auto msg_recv = m_client.recv(std::chrono::milliseconds(5));
+
+			if (!msg_recv.empty())
 			{
-				const auto msg_recv = m_client.recv(std::chrono::milliseconds(5));
+				//evaluate message
+				remote_control::communication::Packet recv_packet(msg_recv);
 
-				if (!msg_recv.empty())
+				// Check for packet consistency, returns 0 if everything is fine else an error code
+				// C++17 allows if with initializer
+				int check = recv_packet.check();
+				if( check )
 				{
-					//evaluate message
-					remote_control::communication::Packet recv_packet(msg_recv);
-
-					// Check for packet consistency, returns 0 if everything is fine else an error code
-					// C++17 allows if with initializer
-					int check = recv_packet.check();
-					if( check )
-					{
-						std::cerr << "Received a compromised package!" << std::endl;
-					}
-					else
-					{
-						// Send to callback functions
-						auto callback = m_callback.find( recv_packet.header() );
-						if(callback != m_callback.end())
-						{
-							callback->second( recv_packet.data() );
-						}
-					}
-
+					std::cerr << "Received a compromised package!" << std::endl;
 				}
-
-				if (!m_tsQueue.empty())
+				else
 				{
-					auto msg_send = m_tsQueue.pop_front_blocking();
-
-					if (!m_client.send(msg_send.toByte(), static_cast<const unsigned int>(msg_send.size()) ))
+					// Send to callback functions
+					auto callback = m_callback.find( recv_packet.header() );
+					if(callback != m_callback.end())
 					{
-						std::cerr << __FILE__ << " Message could not be send" << std::endl;
+						callback->second( recv_packet.data() );
 					}
-				}
-
-				/// Call periodic functions
-				auto current_time = std::chrono::high_resolution_clock::now();
-
-				for(auto itr : m_periodic)
-				{
-					itr.call( current_time );
 				}
 
 			}
-		} catch (std::exception e)
-		{
-			std::cerr << __FILE__ << " Exception in main loop: " << e.what() << std::endl;
+
+			/// Call periodic functions
+			auto current_time = std::chrono::high_resolution_clock::now();
+
+			for(auto itr : m_periodic)
+			{
+				itr.call( current_time );
+			}
+
 		}
 
-		/// Terminate all connections
-		std::cout << "(RC) Close main loop ..." << std::endl;
-		m_client.close();
-
-		std::cout << "(RC) Main loop closed" << std::endl;
 	}
 
 	MainControl::MainControl()
-			: m_periodic(register_periodic_callback()), m_callback(register_server_callback())
+			: m_periodic(register_periodic_callback()), m_callback(register_server_callback()),
+			m_tsQueue(1024)
 	{
 		m_tsRunning = false;
 	}
@@ -107,7 +103,17 @@ namespace remote_control
 		}
 
 		m_tsRunning = true;
-		m_thread = std::thread(&MainControl::loop, this);
+		m_threads.clear();
+		{
+			std::packaged_task<void()> task(std::bind(&MainControl::recv_loop, this));
+			std::future<void> future = task.get_future();
+			m_threads.emplace_back(std::move(std::thread(std::move(task))), std::move(future));
+		}
+		{
+			std::packaged_task<void()> task(std::bind(&MainControl::send_loop, this));
+			std::future<void> future = task.get_future();
+			m_threads.emplace_back(std::move(std::thread(std::move(task))), std::move(future));
+		}
 
 		return true;
 
@@ -115,16 +121,33 @@ namespace remote_control
 
 	void MainControl::stopp()
 	{
-		if (m_tsRunning == true && m_thread.joinable())
+		if (m_tsRunning == true)
 		{
+			while (!m_tsQueue.empty()) {
+				std::cout << "(RC) waiting for queue to empty..." << std::endl;
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
 			m_tsRunning = false;
-			m_thread.join();
+			for (auto &thread : m_threads)
+				thread.first.join();
+			
+			/// Terminate all connections
+			std::cout << "(RC) Close main loop ..." << std::endl;
+			m_client.close();
+			
+			// Raise exception, if any, on the main thread
+			for (auto &thread : m_threads)
+				thread.second.get();
+
+
+			std::cout << "(RC) Main loop closed" << std::endl;
 		}
 	}
 
 	void MainControl::send(remote_control::communication::Packet p)
 	{
-		this->m_tsQueue.push_back(p);
+		if (m_tsRunning)
+			this->m_tsQueue.push_back(p);
 	}
 
 } /* namespace RemoteControl */
