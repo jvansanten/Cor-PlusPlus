@@ -64,7 +64,7 @@ void remotecontrol_start_()
 
 
 	std::string ip;
-	short port = 0;
+	unsigned short port = 0;
 
 	for (auto itr : remotecontrol_steering_card)
 	{
