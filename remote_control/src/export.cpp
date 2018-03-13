@@ -124,9 +124,9 @@ void remotecontrol_end_()
 void remotecontrol_push_runh_(const float* data)
 {
 #ifdef SEND_RUN_HEADER
-	std::cout << "Send run header" << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_HEADER_ID), 273);
-	p.append(data, 273);
+	// std::cout << "Send run header" << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_HEADER_ID), 273*sizeof(float));
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #endif
 	(void) (data);
@@ -135,9 +135,9 @@ void remotecontrol_push_runh_(const float* data)
 void remotecontrol_push_rune_(const float* data)
 {
 #ifdef SEND_RUN_END
-	std::cout << "Send run end" << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_END_ID), 273);
-	p.append(data, 273);
+	// std::cout << "Send run end" << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_END_ID), 273*sizeof(float));
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #endif
 	(void) (data);
@@ -146,9 +146,9 @@ void remotecontrol_push_rune_(const float* data)
 void remotecontrol_push_evth_(const float* data)
 {
 #ifdef SEND_EVENT_HEADER
-	std::cout << "Send event header " << EVENT_HEADER_ID << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_HEADER_ID), static_cast<unsigned int>(273) );
-	p.append(data, 273);
+	// std::cout << "Send event header " << EVENT_HEADER_ID << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_HEADER_ID), static_cast<unsigned int>(273*sizeof(float)) );
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #else
 	(void) (data);
@@ -161,6 +161,9 @@ void remotecontrol_push_evte_(const float* data)
 	std::cout << "Send event end" << std::endl;
 	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_END_ID), 273);
 	p.append(data, 273);
+	// std::cout << "Send event end" << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_END_ID), 273*sizeof(float));
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #endif
 	(void) (data);
