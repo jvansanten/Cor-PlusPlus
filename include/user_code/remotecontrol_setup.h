@@ -12,6 +12,7 @@
 
 #include "remote_control/control/periodic_task.h"
 #include "remote_control/communication/packet.h"
+#include "user_code/remotecontrol_examples/default.h"
 
 #include <array>
 #include <iostream>
@@ -53,7 +54,6 @@ inline auto register_periodic_callback() -> const std::array<remote_control::Per
 	return  arr;//std::array<remote_control::PeriodicTask, 1>({ empty }); 
 }
 
-
 inline auto register_server_callback() -> const std::map<uint32_t, std::function<remote_control::communication::Packet(const std::vector<uint8_t>)>>
 {
 	typedef std::function<remote_control::communication::Packet(const std::vector<uint8_t>)> callback_type;
@@ -68,16 +68,7 @@ inline auto register_server_callback() -> const std::map<uint32_t, std::function
 	 *  Returned values
 	 */
 
-	auto call1 = [](std::vector<uint8_t> msg) -> remote_control::communication::Packet
-			{
-				///Check vector content
-				(void)(msg);
-
-				return remote_control::communication::Packet();
-			};
-
-
-	callback[0x301] = call1;
+	callback[INITIAL_PARTICLE_ID] = recv_primary;
 
 
 	return callback;
@@ -89,8 +80,6 @@ inline void remotecontrol_setup()
 	/** User code here
 	 *  Initialization of custom classes and function goes here
 	 */
-
-
 
 	return;
 }

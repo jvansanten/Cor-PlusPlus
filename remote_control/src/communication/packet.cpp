@@ -100,11 +100,11 @@ namespace remote_control
 				std::cerr << " -> remote_control Packet: Length in data is not equal to the length of the packet. Some data got compromised!";
 				return 0x01;
 			}
-			if(header > 0x00)
-			{
-				std::cerr << " -> remote_control Packet: header defines different package length. Some data got compromised!";
-				return 0x02;
-			}
+			// if(header > 0x00)
+			// {
+			// 	std::cerr << " -> remote_control Packet: header defines different package length. Some data got compromised!";
+			// 	return 0x02;
+			// }
 
 			return 0x00;
 		}

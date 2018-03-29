@@ -23,6 +23,8 @@ ${PROJECT_SOURCE_DIR}/communication/packet.cpp
 ${PROJECT_SOURCE_DIR}/control/main_control.cpp
 ${PROJECT_SOURCE_DIR}/control/periodic_task.cpp
 ${PROJECT_SOURCE_DIR}/control/recv_cache.cpp
+${CMAKE_SOURCE_DIR}/include/user_code/remotecontrol_examples/default.cpp
+
 )
 
 

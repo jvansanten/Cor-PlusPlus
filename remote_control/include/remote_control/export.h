@@ -69,6 +69,7 @@ extern "C" void remotecontrol_push_finalparticle_(const double* data, unsigned i
  */
 extern "C" void remotecontrol_recv_initalparticle_(const float* data);
 
+extern "C" void extprm_(double *type, double *energy, double *theta, double *phi);
 
 /// Function that exposes raw packet managing directly to CORSIKA
 /**
