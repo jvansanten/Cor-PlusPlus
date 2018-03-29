@@ -42,7 +42,7 @@ add_library(${PROJECT_NAME} STATIC ${REMOTECONTROL_SRCS})
 if(BUILD_TESTS)
     # Find gtest and add it to directory
     enable_testing()
-    find_package(GTest REQUIRED)
+    # find_package(GTest REQUIRED)
     include_directories(${GTEST_INCLUDE_DIRS})
 
     # Add RCTest

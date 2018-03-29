@@ -66,6 +66,46 @@ endif ()
 # Set shared compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -Wextra -pedantic -pedantic-errors")
 
+# Check and build tests
+if(BUILD_TESTS)
+    # Find gtest and add it to directory
+    enable_testing()
+    find_package(GTest)
+    if (NOT GTEST_FOUND)
+      # https://stackoverflow.com/questions/9689183/cmake-googletest/9695234#9695234
+      include(ExternalProject)
+      set_directory_properties(PROPERTIES EP_PREFIX ${CMAKE_BINARY_DIR}/vendor)
+      # Add gtest
+      ExternalProject_Add(
+          googletest
+          URL https://github.com/google/googletest/archive/release-1.8.0.tar.gz
+          TIMEOUT 10
+          # PATCH_COMMAND svn patch ${CMAKE_SOURCE_DIR}/gtest.patch ${CMAKE_BINARY_DIR}/ThirdParty/src/googletest
+          # Force separate output paths for debug and release builds to allow easy
+          # identification of correct lib in subsequent TARGET_LINK_LIBRARIES commands
+          CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+                     -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG:PATH=DebugLibs
+                     -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE:PATH=ReleaseLibs
+                     -Dgtest_force_shared_crt=ON
+          # Disable install step
+          INSTALL_COMMAND ""
+          # Wrap download, configure and build steps in a script to log output
+          LOG_DOWNLOAD ON
+          LOG_CONFIGURE ON
+          LOG_BUILD ON)
+      ExternalProject_Get_Property(googletest source_dir)
+      set(GTEST_INCLUDE_DIRS ${source_dir}/googletest/include CACHE PATH "googletest include directory")
+      
+      ExternalProject_Get_Property(googletest binary_dir)
+      set(libdir ${binary_dir}/googlemock/gtest/ReleaseLibs)
+      message("libdir: ${libdir}")
+      set(GTEST_LIBRARIES ${libdir}/${CMAKE_FIND_LIBRARY_PREFIXES}gtest.a CACHE FILEPATH "googletest library" FORCE)
+      set(GTEST_MAIN_LIBRARIES ${libdir}/${CMAKE_FIND_LIBRARY_PREFIXES}gtest_main.a CACHE FILEPATH "googletest main routine" FORCE)
+      
+      set(GTEST_BOTH_LIBRARIES ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+    endif (NOT GTEST_FOUND)
+    include_directories(${GTEST_INCLUDE_DIRS})
+endif(BUILD_TESTS)
 
 # Include user_code
 include_directories("${PROJECT_INCLUDE_DIR}")
@@ -104,11 +144,3 @@ configure_file (
 # include corpp_config.h
 include_directories(${CMAKE_BINARY_DIR})
 
-
-# Check and build tests
-if(BUILD_TESTS)
-    # Find gtest and add it to directory
-    enable_testing()
-    find_package(GTest REQUIRED)
-    include_directories(${GTEST_INCLUDE_DIRS})
-endif(BUILD_TESTS)
