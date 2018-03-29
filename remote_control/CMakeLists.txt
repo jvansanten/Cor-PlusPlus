@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 2.6)
 
 # Project's name
-project(REMOTE_CONTROL CXX)
+project(Remotecontrol CXX)
 
 set (RC_VERSION_MAJOR 2)
 set (RC_VERSION_MINOR 0)
@@ -53,7 +53,7 @@ if(BUILD_TESTS)
 
     target_link_libraries(rc_test network_lib)
 
-    target_link_libraries(rc_test REMOTE_CONTROL)
+    target_link_libraries(rc_test Remotecontrol)
 
     target_link_libraries(rc_test ${GTEST_BOTH_LIBRARIES})
 
