@@ -14,12 +14,14 @@
 #include <mutex>
 
 #include "user_code/remotecontrol_examples/default.h"
+#include "user_code/dynstack_examples/leading_muon_bias.h"
 #include "remote_control/export.h"
 
 struct {
 	double type, energy, theta, phi;
+	double muon_bias;
 	bool valid;
-} primary_particle = { 0, 0, 0, 0, false};
+} primary_particle = { 0, 0, 0, 0, 1, false};
 
 struct {
 	std::mutex mutex;
@@ -29,7 +31,7 @@ struct {
 remote_control::communication::Packet
 recv_primary(std::vector<uint8_t> msg)
 {
-	if (msg.size() != 4*sizeof(double)) {
+	if (msg.size() != 5*sizeof(double)) {
 		throw std::runtime_error("primary message has the wrong size");
 	}
 	std::unique_lock<std::mutex> lock(primary_particle_lock.mutex);
@@ -37,10 +39,12 @@ recv_primary(std::vector<uint8_t> msg)
 		primary_particle_lock.cv.wait(lock);
 	}
 	
-	primary_particle.type = reinterpret_cast<double*>(msg.data())[0];
-	primary_particle.energy = reinterpret_cast<double*>(msg.data())[1];
-	primary_particle.theta = reinterpret_cast<double*>(msg.data())[2];
-	primary_particle.phi = reinterpret_cast<double*>(msg.data())[3];
+	double *data = reinterpret_cast<double*>(msg.data());
+	primary_particle.type = data[0];
+	primary_particle.energy = data[1];
+	primary_particle.theta = data[2];
+	primary_particle.phi = data[3];
+	primary_particle.muon_bias = data[4];
 	primary_particle.valid = true;
 	
 	primary_particle_lock.cv.notify_one();
@@ -64,6 +68,7 @@ void extprm_(double *type, double *energy, double *theta, double *phi)
 	*energy = primary_particle.energy;
 	*theta = primary_particle.theta;
 	*phi = primary_particle.phi;
+	dynstack::leading_muon_bias::set_bias_factor(primary_particle.muon_bias);
 	primary_particle.valid = false;
 	
 	primary_particle_lock.cv.notify_one();
