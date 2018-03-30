@@ -15,7 +15,8 @@ typedef DeductedParticleType Particle;
 
 
 #ifdef __DYNDEFAULT__
-#include "user_code/dynstack_examples/default.h"
+// #include "user_code/dynstack_examples/default.h"
+#include "user_code/dynstack_examples/leading_muon_bias_setup.h"
 #elif __DYNOUTPUT__
 #include "user_code/dynstack_examples/output.h"
 #elif __DYNICECUBE__
