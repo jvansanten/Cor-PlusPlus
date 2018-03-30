@@ -20,6 +20,8 @@ set (PROJECT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set(DYNSTACK_SRCS
 ${PROJECT_SOURCE_DIR}/export.cpp
+${CMAKE_SOURCE_DIR}/include/user_code/dynstack_examples/leading_muon_bias.cpp
+
 )
 
 # include corpp_config.h
