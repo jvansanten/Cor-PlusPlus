@@ -38,6 +38,7 @@ namespace remote_control
 
 			std::condition_variable m_cv;
 			std::atomic<uint32_t> m_size;
+			uint32_t m_capacity;
 
 		protected:
 
@@ -46,6 +47,7 @@ namespace remote_control
 
 		public:
 			MessageQueue();
+			MessageQueue(uint32_t capacity);
 			virtual ~MessageQueue();
 
 
@@ -54,6 +56,8 @@ namespace remote_control
 
 			storage_type pop_back_blocking();
 			storage_type pop_front_blocking();
+			
+			storage_type pop_front(std::chrono::microseconds timeout);
 
 			bool empty();
 

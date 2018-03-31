@@ -21,12 +21,12 @@
 class Basic
 {
 private:
-	std::array<double, 4> m_elcut;
+	double *m_elcut;
 	std::array<double, 6000> m_particleMass;
 
 	Basic();
 
-	friend void baack_elcut_(const double* p_line, const int* p_size);
+	friend void baack_elcut_(double* p_line, const int* p_size);
 	friend void baack_pama_(const double* const p_particle_mass, const int* p_size);
 
 
@@ -45,6 +45,7 @@ public:
 
 	double particleRestMass(const int particleID) const;
 	double getELCUT(energy_cut p_type) const;
+	void setELCUT(energy_cut p_type, double value);
 
 };
 

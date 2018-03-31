@@ -21,6 +21,13 @@ namespace remote_control
 		MessageQueue::MessageQueue()
 		{
 			m_size = 0;
+			m_capacity = std::numeric_limits<decltype(m_capacity)>::max();
+		}
+
+		MessageQueue::MessageQueue(uint32_t capacity)
+		{
+			m_size = 0;
+			m_capacity = capacity;
 		}
 
 		MessageQueue::~MessageQueue()
@@ -32,6 +39,10 @@ namespace remote_control
 		void MessageQueue::push_back(MessageQueue::storage_type data)
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
+			while (m_size.load() >= m_capacity)
+			{
+				m_cv.wait(lock);
+			}
 			m_size++;
 			m_queue.push_back(data);
 
@@ -40,6 +51,10 @@ namespace remote_control
 		void MessageQueue::push_front(MessageQueue::storage_type data)
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
+			while (m_size.load() >= m_capacity)
+			{
+				m_cv.wait(lock);
+			}
 			m_size++;
 			m_queue.push_front(data);
 
@@ -58,6 +73,7 @@ namespace remote_control
 			m_queue.pop_back();
 			
 			m_size--;
+			m_cv.notify_one();
 
 			return tmp;
 		}
@@ -74,8 +90,26 @@ namespace remote_control
 			m_queue.pop_front();	
 
 			m_size--;
+			m_cv.notify_one();
 
 			return tmp;
+		}
+		
+		MessageQueue::storage_type MessageQueue::pop_front(std::chrono::microseconds timeout)
+		{
+			std::unique_lock<std::mutex> lock(m_mutex);
+			if (m_cv.wait_for(lock, timeout, [this]{ return this->m_size.load() > 0; })) {
+				storage_type tmp = std::move(m_queue.front());
+				m_queue.pop_front();
+
+				m_size--;
+				m_cv.notify_one();
+				
+				return tmp;
+			} else {
+				return MessageQueue::storage_type();
+			}
+
 		}
 
 		bool MessageQueue::empty()

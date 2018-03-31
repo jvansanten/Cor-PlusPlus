@@ -57,8 +57,9 @@ extern "C" void remotecontrol_push_evte_(const float* data);
  *  \param len Length of particle structure in byte for different possible settings of CORSIKA
  *  		   Checks if settings in setup matches the actually used data
  */
-extern "C" void remotecontrol_push_initalparticle_(const float* data, unsigned int len);
+extern "C" void remotecontrol_push_initalparticle_(const double* data, unsigned int* len);
 
+extern "C" void remotecontrol_push_finalparticle_(const double* data, unsigned int* len);
 
 /// Receive information for the initial particle from remote server
 /**

@@ -23,17 +23,14 @@ void baack_init_()
 	basic_setup();
 }
 
-void baack_elcut_(const double* p_line, const int* p_size)
+void baack_elcut_(double* p_line, const int* p_size)
 {
 	if (*p_size != sizeof(double) * 4)
 	{
-		std::cerr << "baack_elcut: The low level energy cut parameter received from CORSIKA has the wrong length - is " << *p_size << " should " << 4 * 4 << std::endl;
+		std::cerr << "baack_set_elcut: The low level energy cut parameter received from CORSIKA has the wrong length - is " << *p_size << " should " << sizeof(double) * 4 << std::endl;
 	}
-
-	for (int i = 0; i < 4; i++)
-	{
-		SBasic().m_elcut[i] = p_line[i];
-	}
+	
+	SBasic().m_elcut = p_line;
 }
 
 void baack_pama_(const double* const p_particle_mass, const int* p_size)

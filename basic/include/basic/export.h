@@ -12,7 +12,7 @@
 
 extern "C" void baack_init_();
 
-extern "C" void baack_elcut_(const double* p_line, const int* p_size);
+extern "C" void baack_elcut_(double* p_line, const int* p_size);
 
 extern "C" void baack_pama_(const double* const p_particle_mass, const int* p_size);
 

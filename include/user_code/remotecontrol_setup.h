@@ -30,10 +30,11 @@
 #define SEND_RUN_END 1
 #define RUN_END_ID 0x06
 
+#define SEND_OBSLEVEL_PARTICLES 1
+#define OBSLEVEL_PARTICLE_ID 0x07
 
-
-
-
+#define SEND_INITIAL_PARTICLE 1
+#define INITIAL_PARTICLE_ID 0x08
 
 // With feature level C++14 the decltype becomes uneccessary
 inline auto register_periodic_callback() -> const std::array<remote_control::PeriodicTask, 1>

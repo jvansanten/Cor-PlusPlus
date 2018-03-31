@@ -9,9 +9,9 @@
 */
 #pragma once
 
-#include "corpp_config.h"
 
 #ifdef _NOCOCO_
+#include "corpp_config.h"
 #else
 #include "../../include/config.h"
 #endif

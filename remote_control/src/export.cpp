@@ -64,7 +64,7 @@ void remotecontrol_start_()
 
 
 	std::string ip;
-	short port = 0;
+	unsigned short port = 0;
 
 	for (auto itr : remotecontrol_steering_card)
 	{
@@ -75,11 +75,11 @@ void remotecontrol_start_()
 		}
 		std::cout << std::endl;
 
-		if (itr.first == "REMOTECONTROL_IP")
+		if (itr.first == "REMOTE_CONTROL")
 		{
 			if (itr.second.size() != 2)
 			{
-				std::cerr << "(RC) Invalid number of parameter for REMOTECONTROL_IP (dns) (port)" << std::endl;
+				std::cerr << "(RC) Invalid number of parameter for REMOTE_CONTROL (dns) (port)" << std::endl;
 				throw(std::exception());
 			}
 
@@ -92,7 +92,7 @@ void remotecontrol_start_()
 			sstr >> port;
 			itr.second.pop_front();
 		}
-		else if (itr.first == "REMOTECONTROL_P")
+		else if (itr.first == "REMOTE_CONTROL_P")
 		{
 			
 		}
@@ -124,9 +124,9 @@ void remotecontrol_end_()
 void remotecontrol_push_runh_(const float* data)
 {
 #ifdef SEND_RUN_HEADER
-	std::cout << "Send run header" << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_HEADER_ID), 273);
-	p.append(data, 273);
+	// std::cout << "Send run header" << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_HEADER_ID), 273*sizeof(float));
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #endif
 	(void) (data);
@@ -135,9 +135,9 @@ void remotecontrol_push_runh_(const float* data)
 void remotecontrol_push_rune_(const float* data)
 {
 #ifdef SEND_RUN_END
-	std::cout << "Send run end" << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_END_ID), 273);
-	p.append(data, 273);
+	// std::cout << "Send run end" << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(RUN_END_ID), 273*sizeof(float));
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #endif
 	(void) (data);
@@ -146,9 +146,9 @@ void remotecontrol_push_rune_(const float* data)
 void remotecontrol_push_evth_(const float* data)
 {
 #ifdef SEND_EVENT_HEADER
-	std::cout << "Send event header " << EVENT_HEADER_ID << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_HEADER_ID), static_cast<unsigned int>(273) );
-	p.append(data, 273);
+	// std::cout << "Send event header " << EVENT_HEADER_ID << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_HEADER_ID), static_cast<unsigned int>(273*sizeof(float)) );
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #else
 	(void) (data);
@@ -158,9 +158,9 @@ void remotecontrol_push_evth_(const float* data)
 void remotecontrol_push_evte_(const float* data)
 {
 #ifdef SEND_EVENT_END
-	std::cout << "Send event end" << std::endl;
-	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_END_ID), 273);
-	p.append(data, 273);
+	// std::cout << "Send event end" << std::endl;
+	remote_control::communication::Packet p(static_cast<uint32_t>(EVENT_END_ID), 273*sizeof(float));
+	p.append(data, 273*sizeof(float));
 	remote_control::SMainControl().send(p);
 #endif
 	(void) (data);
@@ -171,11 +171,28 @@ void remotecontrol_push_evte_(const float* data)
  *  Is called every time CORSIKA creates a new initial particle for the shower simulation.
  */
 
-void remotecontrol_push_initalparticle_(const float* data, unsigned int len)
+void remotecontrol_push_initalparticle_(const double* data, unsigned int* len)
 {
+#ifdef SEND_INITIAL_PARTICLE
+	remote_control::communication::Packet p(static_cast<uint32_t>(INITIAL_PARTICLE_ID), *len);
+	p.append(data, *len);
+	remote_control::SMainControl().send(p);
+#endif
 	(void) (data);
 	(void) (len);
 }
+
+void remotecontrol_push_finalparticle_(const double* data, unsigned int* len)
+{
+#ifdef SEND_OBSLEVEL_PARTICLES
+	remote_control::communication::Packet p(static_cast<uint32_t>(OBSLEVEL_PARTICLE_ID), *len);
+	p.append(data, *len);
+	remote_control::SMainControl().send(p);
+#endif
+	(void) (data);
+	(void) (len);
+}
+
 
 /** \details
  *  Is called every time CORSIKA wants to create a new initial particle for the shower simulation.

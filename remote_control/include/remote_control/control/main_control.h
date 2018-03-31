@@ -12,6 +12,7 @@
 
 #include <mutex>
 #include <thread>
+#include <future>
 #include <atomic>
 #include <condition_variable>
 
@@ -51,8 +52,7 @@ namespace remote_control
 		 * @{
 		 *
 		 */
-		std::thread m_thread;
-
+		std::vector<std::pair<std::thread, std::future<void>>> m_threads;
 
 		/// @}
 
@@ -75,7 +75,8 @@ namespace remote_control
 
 		MainControl();
 
-		void loop();
+		void recv_loop();
+		void send_loop();
 
 	public:
 
