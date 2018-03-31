@@ -16,6 +16,7 @@
 #include "basic/header_manager.h"
 
 #include "leading_muon_bias.h"
+#include "autodiff.h"
 
 typedef DeductedParticleType Particle;
 
@@ -58,41 +59,33 @@ void set_bias_factor(float bias)
 
 class ElbertYield {
 public:
-	ElbertYield() : a(14.5), p1(0.757+1), p2(5.25), logN0(0)
-	{}
-	
-	ElbertYield(double primaryEnergy, unsigned A, double cos_theta) :
-	    a(14.5), p1(0.757+1), p2(5.25),
-	    logN0(std::log(a*A*A/primaryEnergy/effective_costheta(cos_theta)))
-	{}
-	
-	double operator()(double x) const
+	ElbertYield() {};
+	ElbertYield(double a, double ip1, double ip2, bool prompt, int A, double primaryEnergy, double cos_theta) : 
+	p1(ip1), p2(ip2)
 	{
-		return std::exp(logYield(std::log(x)));
+		double decay_prob = prompt ? 1 : A/primaryEnergy/effective_costheta(cos_theta);
+		prefactor = a*A*decay_prob;
+	}
+	template <typename T>
+	T operator()(T x) const
+	{
+		return prefactor*pow(x, -p1)*pow(1-x, p2);
 	}
 	
-	// Invert the Elbert formula to find the energy (in units of the primary
-	// energy/nucleon) above which N muons are expected per shower.
-	double invert(double N) const
+	// Yield parameters fit to MCEq with SIBYLL2.3c
+	static ElbertYield conventional(int A, double primaryEnergy, double cos_theta)
 	{
-		const double xtol(1e-5);
-		const double y = std::log(N);
-		double x0 = std::min((logN0 - y)/p1, -xtol);
-		for (int i=0; i < 20; i++) {
-			const double xp = std::min(x0 - (logYield(x0)-y)/dlogYield(x0), -xtol);
-			if (std::abs(xp-x0) < xtol)
-				return std::exp(xp);
-			x0 = xp;
-		}
-		
-		throw std::runtime_error("Root solver did not converge");
-		return std::exp(x0);
+		return ElbertYield(1.44993611e+01, 1.78254896e+00, 5.23717380e+00, false, A, primaryEnergy, cos_theta);
+	}
+	static ElbertYield prompt(int A, double primaryEnergy, double cos_theta)
+	{
+		return ElbertYield(1.34457545e-05, 1.07803981e+00, 7.36781985e+00, true, A, primaryEnergy, cos_theta);
 	}
 
+	double prefactor;
+	double p1, p2;
+
 private:
-	double a, p1, p2;
-	double logN0;
-	
 	// Effective local atmospheric density correction from [Chirkin]_.
 	// 
 	// .. [Chirkin] D. Chirkin. Fluxes of atmospheric leptons at 600-GeV - 60-TeV. 2004. http://arxiv.org/abs/hep-ph/0407078
@@ -101,26 +94,16 @@ private:
 		std::array<double,5> p = {0.102573, -0.068287, 0.958633, 0.0407253, 0.817285};
 		return std::sqrt((std::pow(x,2) + std::pow(p[0],2) + p[1]*std::pow(x,p[2]) + p[3]*std::pow(x,p[4]))/(1 + std::pow(p[0],2) + p[1] + p[3]));
 	}
-	
-	double logYield(double logx) const
-	{
-		return logN0 - p1*logx + p2*std::log(1-std::exp(logx));
-	}
-	
-	double dlogYield(double logx) const
-	{
-		return -p1 - p2*std::exp(logx)/(1-std::exp(logx));
-	}
 };
 
-class ElbertBias : private ElbertYield {
+class ElbertBias {
 public:
 	ElbertBias() {}
 	// Find x_threshold such that the probability of a shower producing
 	// at least 1 muon above the threshold is bias_factor
 	ElbertBias(double primaryEnergy, unsigned A, double cos_theta, double bias_factor)
-		: ElbertYield(primaryEnergy,A,cos_theta),
-		  x_threshold(bias_factor < 1 ? invert(-std::log(1-bias_factor)) : 0)
+		: conv(ElbertYield::conventional(A,primaryEnergy,cos_theta)), prompt(ElbertYield::prompt(A,primaryEnergy,cos_theta)),
+		x_threshold(bias_factor < 1 ? invert(-std::log(1-bias_factor)) : 0)
 	{}
 	
 	// NB: the x of the lead muon will be stored in single precision in the
@@ -139,12 +122,47 @@ public:
 			// happens because nearly all showers produce low energy muons; 
 			// once we reach this low x regime, we just have to pick 1 out of 
 			// 1/bias_factor showers at random.
-			return (1-std::exp(-ElbertYield::operator()(x_threshold)))/(1-std::exp(-ElbertYield::operator()(x)));
+			return (1-std::exp(-yield(x_threshold)))/(1-std::exp(-yield(x)));
 		}
+	}
+	
+	double yield(double x) const
+	{
+		return conv(x)+prompt(x);
+	}
+	
+	// Invert the Elbert formula to find the energy (in units of the primary
+	// energy/nucleon) above which N muons are expected per shower.
+	double invert(double N) const
+	{
+		// root-finding is easier in log space
+		auto logtotal = [this](double logx)
+		{
+			auto x = exp(FD<1,double>(logx,0));
+			return log(this->conv(x)+this->prompt(x));
+		};
+		
+		const double xtol(1e-5);
+		double y0 = log(N);
+		double x0 = std::min((log(conv.prefactor)-y0)/conv.p1, -xtol);
+		
+		for (int i=0; i < 20; i++) {
+			auto y = logtotal(x0);
+			double xp = std::min(x0-(y.value()-y0)/y.derivative(0), -xtol);
+			if (std::abs(xp-x0) < xtol) {
+				return std::exp(xp);
+				break;
+			}
+			x0 = xp;
+		}
+		
+		throw std::runtime_error("Root solver did not converge");
+		return std::exp(x0);
 	}
 	
 	double threshold() const { return x_threshold; }
 private:
+	ElbertYield conv, prompt;
 	double x_threshold;
 };
 
