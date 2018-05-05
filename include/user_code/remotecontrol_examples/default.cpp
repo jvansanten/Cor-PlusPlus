@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <cmath>
 
 #include "user_code/remotecontrol_examples/default.h"
 #include "user_code/dynstack_examples/leading_muon_bias.h"
@@ -20,8 +21,9 @@
 struct {
 	double type, energy, theta, phi;
 	double muon_bias;
+	std::array<double,4> elcut;
 	bool valid;
-} primary_particle = { 0, 0, 0, 0, 1, false};
+} primary_particle = { 0, 0, 0, 0, 1, {NAN,NAN,NAN,NAN}, false};
 
 struct {
 	std::mutex mutex;
@@ -31,7 +33,7 @@ struct {
 remote_control::communication::Packet
 recv_primary(std::vector<uint8_t> msg)
 {
-	if (msg.size() != 5*sizeof(double)) {
+	if (msg.size() < 5*sizeof(double)) {
 		throw std::runtime_error("primary message has the wrong size");
 	}
 	std::unique_lock<std::mutex> lock(primary_particle_lock.mutex);
@@ -45,6 +47,11 @@ recv_primary(std::vector<uint8_t> msg)
 	primary_particle.theta = data[2];
 	primary_particle.phi = data[3];
 	primary_particle.muon_bias = data[4];
+	if (msg.size() >= 9*sizeof(double)) {
+		std::copy(&data[5], &data[5]+4, primary_particle.elcut.begin());
+	} else {
+		std::fill(primary_particle.elcut.begin(), primary_particle.elcut.end(), NAN);
+	}
 	primary_particle.valid = true;
 	
 	primary_particle_lock.cv.notify_one();
@@ -54,24 +61,22 @@ recv_primary(std::vector<uint8_t> msg)
 
 void extprm_(double *type, double *energy, double *theta, double *phi)
 {
-	// std::cerr << " --- getting a primary --- " << primary_particle.valid << std::endl;
-	
 	std::unique_lock<std::mutex> lock(primary_particle_lock.mutex);
 	while (!primary_particle.valid) {
-		// std::cerr << " --- waiting in extprm --- " << primary_particle.valid << std::endl;
 		primary_particle_lock.cv.wait(lock);
 	}
-	// std::cerr << " --- done waiting in extprm --- " << primary_particle.valid << std::endl;
-	
 	
 	*type = primary_particle.type;
 	*energy = primary_particle.energy;
 	*theta = primary_particle.theta;
 	*phi = primary_particle.phi;
 	dynstack::leading_muon_bias::set_bias_factor(primary_particle.muon_bias);
+	for (unsigned int i=0; i < 4; i++) {
+		if (std::isfinite(primary_particle.elcut[i])) {
+			SBasic().setELCUT(Basic::energy_cut(i), primary_particle.elcut[i]);
+		}
+	}
 	primary_particle.valid = false;
 	
 	primary_particle_lock.cv.notify_one();
-	
-	
 }
