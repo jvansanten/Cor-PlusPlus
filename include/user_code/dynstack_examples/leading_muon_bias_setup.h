@@ -40,24 +40,37 @@ auto dynstack_setup(std::vector<long> sizes, std::vector< std::list<std::string>
 	}
 	if (arguments.size() != 1) {
 		std::cerr << "You must provide a DYNSTACK_P line in the steering card, e.g." << std::endl;
-		std::cerr << "DYNSTACK_P muon bias_factor 1e-3" << std::endl;
+		std::cerr << "DYNSTACK_P bias_target mu bias_factor 1e-3" << std::endl;
 		std::cerr << "to select approximately 0.1% of showers" << std::endl;
 		std::cerr << arguments.size() << std::endl;
 		exit(-1);
 	}
 	auto &line = arguments.front();
-	auto word = line.begin();
-	if (word == line.end() || *word != "muon") {
-		std::cerr << "First DYNSTACK argument must be \"muon\" (got \""<<*word<<"\")" << std::endl;
-		exit(-1);
-	}
-	while (++word != line.end()) {
+	for (auto word = line.begin(); word != line.end(); word++) {
 		if (*word == "bias_factor") {
 			float bias_factor;
 			if (!read_argument(word, line.end(), bias_factor, 0.f, 1.f)) {
 				exit(-1);
 			}
 			dynstack::leading_muon_bias::set_bias_factor(bias_factor);
+		} else if (*word == "bias_target") {
+			if (++word == line.end()) {
+				std::cerr << "no argument provided for bias_target (mu, numu, nue)" << std::endl;
+				exit(-1);
+			}
+			if (*word == "mu")
+				dynstack::leading_muon_bias::set_bias_target(0);
+			else if (*word == "numu")
+				dynstack::leading_muon_bias::set_bias_target(1);
+			else if (*word == "nue")
+				dynstack::leading_muon_bias::set_bias_target(2);
+			else {
+				std::cerr << "bias_target got unknown argument '"<<*word<<"'" << std::endl;
+				exit(-1);
+			}
+		} else {
+			std::cerr << "unknown option '"<<*word<<"'" << std::endl;
+			exit(-1);
 		}
 	}
 	SHeaderManager().register_evth_callback(dynstack::leading_muon_bias::header);

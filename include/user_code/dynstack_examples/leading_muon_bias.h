@@ -44,6 +44,7 @@ void header(lib::data::EventHeader &block);
 void footer(lib::data::EventEnd &block);
 
 void set_bias_factor(float bias_factor);
+void set_bias_target(int target);
 
 typedef 
 	dynstack::advanced::KillStack<

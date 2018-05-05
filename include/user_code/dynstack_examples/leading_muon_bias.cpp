@@ -60,30 +60,36 @@ void set_bias_factor(float bias)
 class ElbertYield {
 public:
 	ElbertYield() {};
-	ElbertYield(double a, double ip1, double ip2, bool prompt, int A, double primaryEnergy, double cos_theta) : 
-	p1(ip1), p2(ip2)
+	ElbertYield(const std::array<double,4> &params, bool prompt, int A, double primaryEnergy, double cos_theta) : 
+	p1(params[1]), p2(params[2]), p3(params[3])
 	{
 		double decay_prob = prompt ? 1 : A/primaryEnergy/effective_costheta(cos_theta);
-		prefactor = a*A*decay_prob;
+		prefactor = params[0]*A*decay_prob;
 	}
 	template <typename T>
 	T operator()(T x) const
 	{
-		return prefactor*pow(x, -p1)*pow(1-x, p2);
+		return prefactor*pow(x, -p1)*pow(1-pow(x,p3), p2);
 	}
 	
+	enum ParticleType {
+		Mu = 0,
+		NuMu,
+		NuE,
+	};
+	
 	// Yield parameters fit to MCEq with SIBYLL2.3c
-	static ElbertYield conventional(int A, double primaryEnergy, double cos_theta)
+	static ElbertYield conventional(ParticleType family, int A, double primaryEnergy, double cos_theta)
 	{
-		return ElbertYield(1.44993611e+01, 1.78254896e+00, 5.23717380e+00, false, A, primaryEnergy, cos_theta);
+		return ElbertYield(elbert_params[family], false, A, primaryEnergy, cos_theta);
 	}
-	static ElbertYield prompt(int A, double primaryEnergy, double cos_theta)
+	static ElbertYield prompt(ParticleType family, int A, double primaryEnergy, double cos_theta)
 	{
-		return ElbertYield(1.34457545e-05, 1.07803981e+00, 7.36781985e+00, true, A, primaryEnergy, cos_theta);
+		return ElbertYield(elbert_params[3+family], true, A, primaryEnergy, cos_theta);
 	}
 
 	double prefactor;
-	double p1, p2;
+	double p1, p2, p3;
 
 private:
 	// Effective local atmospheric density correction from [Chirkin]_.
@@ -94,15 +100,61 @@ private:
 		std::array<double,5> p = {0.102573, -0.068287, 0.958633, 0.0407253, 0.817285};
 		return std::sqrt((std::pow(x,2) + std::pow(p[0],2) + p[1]*std::pow(x,p[2]) + p[3]*std::pow(x,p[4]))/(1 + std::pow(p[0],2) + p[1] + p[3]));
 	}
+	
+	static const std::array<std::array<double,4>,6> elbert_params;
 };
+
+const std::array<std::array<double,4>,6> ElbertYield::elbert_params = {{
+		{14.7, 1.79, 3.27, 0.64},
+		{5.64, 1.77, 3.74, 0.51},
+		{0.25, 1.75, 6.38, 0.68},
+		{2.8E-05, 1, 6.73, 0.78},
+		{2.8E-05, 0.97, 7.19, 0.58},
+		{3.2E-05, 0.95, 7.32, 0.65}
+	}};
+
+ElbertYield::ParticleType target_type = ElbertYield::Mu;
+
+void set_bias_target(int target)
+{
+	switch (target) {
+		case ElbertYield::Mu:
+			target_type = ElbertYield::Mu;
+			break;
+		case ElbertYield::NuMu:
+			target_type = ElbertYield::NuMu;
+			break;
+		case ElbertYield::NuE:
+			target_type = ElbertYield::NuE;
+			break;
+		default:
+			throw std::runtime_error("Unknown bias target type");
+	};
+}
+
+std::ostream& operator<<(std::ostream &os, ElbertYield::ParticleType target)
+{
+	switch (target) {
+		case ElbertYield::Mu:
+			os << "mu";
+			break;
+		case ElbertYield::NuMu:
+			os << "nu_mu";
+			break;
+		case ElbertYield::NuE:
+			os << "nu_e";
+			break;
+	};
+	return os;
+}
 
 class ElbertBias {
 public:
 	ElbertBias() {}
 	// Find x_threshold such that the probability of a shower producing
 	// at least 1 muon above the threshold is bias_factor
-	ElbertBias(double primaryEnergy, unsigned A, double cos_theta, double bias_factor)
-		: conv(ElbertYield::conventional(A,primaryEnergy,cos_theta)), prompt(ElbertYield::prompt(A,primaryEnergy,cos_theta)),
+	ElbertBias(ElbertYield::ParticleType family, double primaryEnergy, unsigned A, double cos_theta, double bias_factor)
+		: conv(ElbertYield::conventional(family,A,primaryEnergy,cos_theta)), prompt(ElbertYield::prompt(family,A,primaryEnergy,cos_theta)),
 		x_threshold(bias_factor < 1 ? invert(-std::log(1-bias_factor)) : 0)
 	{}
 	
@@ -214,7 +266,7 @@ int getNucleonNumber(const Particle &p)
 double getEnergy(const DeductedParticleType &p)
 {
 	double pama = SBasic().particleRestMass(getType(p));
-	return p[Particle::GAMMA]*pama;
+	return p[Particle::GAMMA]*(pama == 0 ? 1. : pama);
 }
 
 void particleIn(const Particle *p)
@@ -223,9 +275,9 @@ void particleIn(const Particle *p)
 		// First push after reset is the shower primary
 		primaryEnergy = getEnergy(*p)/getNucleonNumber(*p);
 		if (bias_factor < 1) {
-			kill_bias = ElbertBias(getEnergy(*p), getNucleonNumber(*p), (*p)[Particle::COSTHE], bias_factor);
+			kill_bias = ElbertBias(target_type, getEnergy(*p), getNucleonNumber(*p), (*p)[Particle::COSTHE], bias_factor);
 			if (n_showers == 1)
-				std::cerr << "(muon-bias) Ep="<<getEnergy(*p)<<" A="<<getNucleonNumber(*p)<<" P(N_mu(x>"<<kill_bias.threshold()<<")>0)="<<bias_factor<<std::endl;
+				std::cerr << "(muon-bias) Ep="<<getEnergy(*p)<<" A="<<getNucleonNumber(*p)<<" P(N_"<<target_type<<"(x>"<<kill_bias.threshold()<<")>0)="<<bias_factor<<std::endl;
 		}
 		// Go straight to secondary stack if no threshold set
 		state = (bias_factor < 1) ? PENDING : COMMITTED;
@@ -241,12 +293,27 @@ double uniform()
 	return v;
 }
 
+bool isTarget(const Particle *p)
+{
+	int type = getType(*p);
+	switch (target_type) {
+		case ElbertYield::Mu:
+			return (type == 5 || type == 6);
+		case ElbertYield::NuMu:
+			return (type == 68 || type == 69);
+		case ElbertYield::NuE:
+			return (type == 66 || type == 67);
+		default:
+			return false;
+	}
+}
+
 void particleOut(const Particle *p)
 {
 	n_pops++;
 	// if in unbiased LIFO mode, need to search for the highest-energy muon
 	// explicitly
-	if (bias_factor == 1 && (getType(*p) == 5 || getType(*p) == 6)) {
+	if (bias_factor == 1 && isTarget(p)) {
 		double x = getEnergy(*p)/primaryEnergy;
 		if (x > max_x)
 			max_x = x;
@@ -255,8 +322,6 @@ void particleOut(const Particle *p)
 		max_x = getEnergy(*p)/primaryEnergy;
 		// Probability of acceptance
 		double prob = bias(max_x)*weight;
-		// Is this the leading muon?
-		bool isMuon = (getType(*p) == 5 || getType(*p) == 6);
 		
 		/// Since the acceptance probability decreases monotonically with 
 		/// decreasing `x`, the probability at current `x` is an upper limit on
@@ -264,7 +329,7 @@ void particleOut(const Particle *p)
 		/// shower. Here we make the final decision if we have the highest-
 		/// energy muon. Otherwise, we try kill the shower early and record
 		/// the probability if the shower survives.
-		if ((isMuon || prob < 0.9)) {
+		if ((isTarget(p) || prob < 0.9)) {
 			if (uniform() >= prob) {
 				// Stop the shower immediately
 				weight = 0;
@@ -273,7 +338,7 @@ void particleOut(const Particle *p)
 			} else {
 				// Account for acceptance probability
 				weight /= prob;
-				if (isMuon) {
+				if (isTarget(p)) {
 					state = COMMITTED;
 				}
 			}
@@ -283,6 +348,9 @@ void particleOut(const Particle *p)
 
 bool isPending(const Particle *p)
 {
+	// Send target-class particles to energy-sorted stack if still pending
+	if (isTarget(p))
+		return (state == PENDING);
 	switch (getType(*p)) {
 		// Defer EM shower and neutrinos to secondary stack
 		case   1: // gamma
@@ -318,6 +386,9 @@ void header(lib::data::EventHeader &block)
 	// Write bias factor to field normally used for energy_interesting
 	// in ICECUBE1 (original neutrino kill threshold) mode
 	block.write(lib::data::EventHeader::index(219), float(bias_factor));
+	// This field is usually used for the gzip flag. if you've gotten this far,
+	// you _already know you have gzip data_. Write the bias target instead.
+	block.write(lib::data::EventHeader::index(220), float(target_type));
 }
 
 void footer(lib::data::EventEnd &block)
@@ -326,6 +397,7 @@ void footer(lib::data::EventEnd &block)
 	// FIXME: is there a better place to put these?
 	block.write(lib::data::EventEnd::index(266), float(weight));
 	block.write(lib::data::EventEnd::index(267), float(max_x));
+	block.write(lib::data::EventEnd::index(268), float(target_type));
 }
 
 }}
