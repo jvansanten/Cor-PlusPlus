@@ -37,3 +37,8 @@ double Basic::getELCUT(Basic::energy_cut p_id) const
 {
 	return m_elcut[ static_cast<unsigned int>(p_id) ];
 }
+
+void Basic::setELCUT(Basic::energy_cut p_id, double value)
+{
+	m_elcut[ static_cast<unsigned int>(p_id) ] = value;
+}
