@@ -20,10 +20,11 @@
 
 struct {
 	double type, energy, theta, phi;
+	int bias_target;
 	double muon_bias;
 	std::array<double,4> elcut;
 	bool valid;
-} primary_particle = { 0, 0, 0, 0, 1, {NAN,NAN,NAN,NAN}, false};
+} primary_particle = { 0, 0, 0, 0, 0, 1, {NAN,NAN,NAN,NAN}, false};
 
 struct {
 	std::mutex mutex;
@@ -33,7 +34,7 @@ struct {
 remote_control::communication::Packet
 recv_primary(std::vector<uint8_t> msg)
 {
-	if (msg.size() < 5*sizeof(double)) {
+	if (msg.size() < 4*sizeof(double)) {
 		throw std::runtime_error("primary message has the wrong size");
 	}
 	std::unique_lock<std::mutex> lock(primary_particle_lock.mutex);
@@ -46,9 +47,18 @@ recv_primary(std::vector<uint8_t> msg)
 	primary_particle.energy = data[1];
 	primary_particle.theta = data[2];
 	primary_particle.phi = data[3];
-	primary_particle.muon_bias = data[4];
-	if (msg.size() >= 9*sizeof(double)) {
-		std::copy(&data[5], &data[5]+4, primary_particle.elcut.begin());
+	if (msg.size() > 4*sizeof(double)) {
+		primary_particle.bias_target = int(data[4]);
+	} else {
+		primary_particle.bias_target = 0;
+	}
+	if (msg.size() > 5*sizeof(double)) {
+		primary_particle.muon_bias = data[5];
+	} else {
+		primary_particle.muon_bias = 1.;
+	}
+	if (msg.size() >= 10*sizeof(double)) {
+		std::copy(&data[6], &data[6]+4, primary_particle.elcut.begin());
 	} else {
 		std::fill(primary_particle.elcut.begin(), primary_particle.elcut.end(), NAN);
 	}
@@ -70,6 +80,7 @@ void extprm_(double *type, double *energy, double *theta, double *phi)
 	*energy = primary_particle.energy;
 	*theta = primary_particle.theta;
 	*phi = primary_particle.phi;
+	dynstack::leading_muon_bias::set_bias_target(primary_particle.bias_target);
 	dynstack::leading_muon_bias::set_bias_factor(primary_particle.muon_bias);
 	for (unsigned int i=0; i < 4; i++) {
 		if (std::isfinite(primary_particle.elcut[i])) {
