@@ -10,7 +10,7 @@
 
 #pragma once
 
-extern "C" void dynrng_seeds(int* seeds);
+extern "C" void dynrng_seed_(unsigned int *gen, unsigned int* seeds);
 
-extern "C" void dynrng_getrandom(int* gen, int* N, double* numbers);
+extern "C" void dynrng_getrandom_(unsigned int* gen, int* N, double* numbers);
 

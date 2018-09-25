@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 2.6)
 
 # Project's name
-project(DYNRNG CXX)
+project(Dynrng CXX)
 
 set (CORPP_VERSION_MAJOR 2)
 set (CORPP_VERSION_MINOR 0)

@@ -11,23 +11,23 @@
 
 #include <array>
 #include <random>
-
+#include <sstream>
 
 std::array<std::mt19937_64, 6> generators;
 
 
-extern "C" void dynrng_seeds(double* seeds)
+extern "C" void dynrng_seed_(unsigned int *gen, unsigned int* seeds)
 {
-	// random device for true random
-	for(int i=0; i<6; i++)
-	{
-		std::seed_seq seed(seeds[i]);
-
-		generators[i].seed(seed);
+	if (*gen >= generators.size()) {
+		std::ostringstream oss;
+		oss << "RNG stream " << *gen << " out of range";
+		throw std::out_of_range(oss.str().c_str());
 	}
+	generators[*gen-1].seed(seeds[0]);
+	generators[*gen-1].discard(seeds[1] + 1000000000*size_t(seeds[2]));
 }
 
-extern "C" void dynrng_getrandom(unsigned int* gen, int* N, double* numbers)
+extern "C" void dynrng_getrandom_(unsigned int* gen, int* N, double* numbers)
 {
 	std::uniform_real_distribution<double> distribution(0.0,1.0);
 
@@ -38,7 +38,7 @@ extern "C" void dynrng_getrandom(unsigned int* gen, int* N, double* numbers)
 
 	for(int i=0; i < *N; i++)
 	{
-		numbers[i] = distribution(generators[*gen]);
+		numbers[i] = distribution(generators[*gen-1]);
 	}
 }
 
