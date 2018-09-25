@@ -1,3 +1,7 @@
 [submodule "lib/DTL"]
 	path = lib/DTL
 	url = https://github.com/matyro/DTL.git
+[submodule "dynrng/extern/Random123"]
+	path = dynrng/extern/Random123
+	url = git@github.com:jvansanten/Random123.git
+	branch = clang-warnings
