@@ -9,9 +9,7 @@ set (CORPP_VERSION_MAJOR 2)
 set (CORPP_VERSION_MINOR 0)
 set (CORPP_VERSION_PATCH 0)
 
-
-option(__RNG_MERSENNE__ "Set RNG to 64Bit Mersenne Twister" ON)
-
+option(__RNG_RANDOM123__ "Set RNG to Random123. Otherwise, use 64-bit Mersenne Twister" ON)
 
 # Each subdirectory CMakeList.txt defines booth variable with
 set (PROJECT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -31,7 +29,10 @@ include_directories("${PROJECT_INCLUDE_DIR}")
 # Include user_code
 include_directories("${USER_CODE_INCLUDE_DIR}")
 
-
+if (__RNG_RANDOM123__)
+  add_definitions(-D__RNG_RANDOM123__)
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/extern/Random123/include")
+endif ()
 
 add_library(${PROJECT_NAME} STATIC ${DYNRNG_SRCS})
 
