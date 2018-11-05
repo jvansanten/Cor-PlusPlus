@@ -13,6 +13,7 @@
 #include <iostream>
 #include <mutex>
 #include <cmath>
+#include <condition_variable>
 
 #include "user_code/remotecontrol_examples/default.h"
 #include "user_code/dynstack_examples/leading_muon_bias.h"
