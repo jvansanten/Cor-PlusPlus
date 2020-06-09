@@ -63,6 +63,9 @@ public:
 	ElbertYield(const std::array<double,4> &params, bool prompt, int A, double primaryEnergy, double cos_theta) : 
 	p1(params[1]), p2(params[2]), p3(params[3])
 	{
+		if (A < 1) {
+			throw std::runtime_error("Invalid atomic number");
+		}
 		double decay_prob = prompt ? 1 : A/primaryEnergy/effective_costheta(cos_theta);
 		prefactor = params[0]*A*decay_prob;
 	}
