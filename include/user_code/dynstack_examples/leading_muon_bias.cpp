@@ -346,7 +346,7 @@ void particleOut(const Particle *p)
 	}
 }
 
-bool isPending(const Particle *p)
+bool toSortedStack(const Particle *p)
 {
 	// Send target-class particles to energy-sorted stack if still pending
 	if (isTarget(p))
@@ -369,6 +369,12 @@ bool isPending(const Particle *p)
 		default:
 			return (state == PENDING);
 	}
+}
+
+/* Pop preferentially from energy sorted stack or LIFO stack */
+bool isPending()
+{
+	return (state != COMMITTED);
 }
 
 bool isDead()

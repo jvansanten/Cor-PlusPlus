@@ -21,7 +21,15 @@ namespace dynstack
 	namespace advanced
 	{		
 
-		template<class TStackIf, class TStackElse, bool(*TFunc)(const typename TStackIf::m_ReturnType* const)>
+		namespace detail
+		{
+			template <bool(*Func)()>
+			inline bool maybe_call() { return Func(); }
+			template <>
+			inline bool maybe_call<nullptr>() { return true; }
+		}
+
+		template<class TStackIf, class TStackElse, bool(*TFunc)(const typename TStackIf::m_ReturnType* const), bool(*SourceStackFunc)()=nullptr>
 		class IfStack : public Stack<typename TStackIf::m_ReturnType, typename TStackIf::m_StackType>
 		{
 			static_assert(std::is_base_of<_Stack, TStackIf>::value, "TStackIf must be a Stack!");
@@ -36,6 +44,7 @@ namespace dynstack
 
 			TStackIf m_oStack_if;
 			TStackElse m_oStack_else;
+			mutable unsigned long max_size_if, max_size_else;
 
 		protected:
 
@@ -127,7 +136,7 @@ namespace dynstack
 			//Get last element without removing (copy)
 			inline TType back()
 			{
-				if (m_oStack_if.size() > 0)
+				if (detail::maybe_call<SourceStackFunc>() || m_oStack_else.size() == 0)
 				{
 					return m_oStack_if.back();
 				}
@@ -141,7 +150,7 @@ namespace dynstack
 			//Get last element with removing (move)
 			inline TType pop_back()
 			{
-				if (m_oStack_if.size() > 0)
+				if (detail::maybe_call<SourceStackFunc>() || m_oStack_else.size() == 0)
                                 {
                                         return m_oStack_if.pop_back();
                                 }
@@ -157,7 +166,7 @@ namespace dynstack
 			// that was readed with back
 			inline bool pop()
 			{
-				if (m_oStack_if.size() > 0)
+				if (detail::maybe_call<SourceStackFunc>() || m_oStack_else.size() == 0)
                                 {
                                         return m_oStack_if.pop();
                                 }

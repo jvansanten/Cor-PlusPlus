@@ -33,7 +33,8 @@ void close();
 
 void particleIn(const Particle *p);
 void particleOut(const Particle *p);
-bool isPending(const Particle *p);
+bool toSortedStack(const Particle *p);
+bool isPending();
 bool isDead();
 
 struct EnergySort {
@@ -55,6 +56,7 @@ typedef
 				dynstack::advanced::IfStack<
 					dynstack::storage::OrderedStack<Particle, EnergySort>,
 					dynstack::storage::LIFO_Stack<Particle>,
+					toSortedStack,
 					isPending>,
 				particleIn>,
 			particleOut>,
