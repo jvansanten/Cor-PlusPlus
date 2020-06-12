@@ -32,7 +32,8 @@ bool read_argument(Iterator &word, Iterator &&end, Target &target, Target lo, Ta
 void reset() { dynstack::leading_muon_bias::reset(); }
 void close() { dynstack::leading_muon_bias::close(); }
 
-auto dynstack_setup(std::vector<long> sizes, std::vector< std::list<std::string> > arguments )
+std::unique_ptr<dynstack::leading_muon_bias::stack_type>
+dynstack_setup(std::vector<long> sizes, std::vector< std::list<std::string> > arguments )
 {
 	if (sizes.empty()) {
 		std::cerr << "No stack size set" << std::endl;
@@ -76,7 +77,9 @@ auto dynstack_setup(std::vector<long> sizes, std::vector< std::list<std::string>
 	SHeaderManager().register_evth_callback(dynstack::leading_muon_bias::header);
 	SHeaderManager().register_evte_callback(dynstack::leading_muon_bias::footer);
 	
-	auto stack = std::make_unique<dynstack::leading_muon_bias::stack_type>(sizes.front());
+	auto stack = std::unique_ptr<dynstack::leading_muon_bias::stack_type>(
+	    new dynstack::leading_muon_bias::stack_type(sizes.front())
+	);
 	return std::move(stack);
 }
 
