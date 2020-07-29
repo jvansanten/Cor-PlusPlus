@@ -46,6 +46,10 @@ namespace dynstack
 			TStackElse m_oStack_else;
 			mutable unsigned long max_size_if, max_size_else;
 
+			inline bool from_if_stack() {
+				return m_oStack_if.size() && (detail::maybe_call<SourceStackFunc>() || m_oStack_else.size() == 0);
+			}
+
 		protected:
 
 					
@@ -136,7 +140,7 @@ namespace dynstack
 			//Get last element without removing (copy)
 			inline TType back()
 			{
-				if (detail::maybe_call<SourceStackFunc>() || m_oStack_else.size() == 0)
+				if (from_if_stack())
 				{
 					return m_oStack_if.back();
 				}
@@ -150,7 +154,7 @@ namespace dynstack
 			//Get last element with removing (move)
 			inline TType pop_back()
 			{
-				if (detail::maybe_call<SourceStackFunc>() || m_oStack_else.size() == 0)
+				if (from_if_stack())
                                 {
                                         return m_oStack_if.pop_back();
                                 }
@@ -166,7 +170,7 @@ namespace dynstack
 			// that was readed with back
 			inline bool pop()
 			{
-				if (detail::maybe_call<SourceStackFunc>() || m_oStack_else.size() == 0)
+				if (from_if_stack())
                                 {
                                         return m_oStack_if.pop();
                                 }
